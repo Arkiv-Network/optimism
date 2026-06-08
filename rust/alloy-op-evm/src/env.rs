@@ -35,8 +35,9 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
         };
     }
     check_forks! {
-        is_interop_active_at_timestamp => INTEROP,
         is_karst_active_at_timestamp => KARST,
+        // op-revm still names this spec `INTEROP`; Lagoon is the hard fork that activates it.
+        is_lagoon_active_at_timestamp => INTEROP,
         is_jovian_active_at_timestamp => JOVIAN,
         is_isthmus_active_at_timestamp => ISTHMUS,
         is_holocene_active_at_timestamp => HOLOCENE,
@@ -204,8 +205,8 @@ mod tests {
 
     fake_hardfork_constructors! {
         timestamp:
-            interop => Interop,
             karst => Karst,
+            lagoon => Lagoon,
             jovian => Jovian,
             isthmus => Isthmus,
             holocene => Holocene,
@@ -230,8 +231,8 @@ mod tests {
         }
     }
 
-    #[test_case::test_case(FakeHardfork::interop(), OpSpecId::INTEROP; "Interop")]
     #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
+    #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::INTEROP; "Lagoon")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
     #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]

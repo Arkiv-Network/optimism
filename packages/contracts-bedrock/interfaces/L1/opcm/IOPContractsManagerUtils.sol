@@ -35,6 +35,11 @@ interface IOPContractsManagerUtils {
         address challenger;
     }
 
+    /// @notice Configuration struct for the SuperPermissionedDisputeGame.
+    struct SuperPermissionedDisputeGameConfig {
+        address proposer;
+    }
+
     /// @notice Configuration struct for the ZKDisputeGame.
     struct ZKDisputeGameConfig {
         Claim absolutePrestate;
@@ -56,7 +61,7 @@ interface IOPContractsManagerUtils {
 
     error OPContractsManagerUtils_DowngradeNotAllowed(address _contract);
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
-    error OPContractsManagerUtils_InitializingDuringUpgrade();
+    error OPContractsManagerUtils_OZv5InitializableUnsupported();
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
     error OPContractsManagerUtils_UnsupportedGameType();
@@ -69,6 +74,7 @@ interface IOPContractsManagerUtils {
     error EmptyInitcode();
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
+
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
     function contractsContainer() external view returns (IOPContractsManagerContainer);

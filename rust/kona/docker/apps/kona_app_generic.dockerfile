@@ -35,6 +35,12 @@ FROM dep-setup-stage AS app-local-setup-stage
 # Copy in the local workspace repository
 COPY . /workspace
 
+# Pull in the NUT bundle JSONs from an additional named build context. The
+# kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR looking for an
+# op-core/ sibling; placing the bundles at /workspace/op-core/nuts/bundles
+# satisfies that walk without widening the primary rust/ context.
+COPY --from=nuts-bundles / /workspace/op-core/nuts/bundles
+
 ################################
 #   Remote Repo Setup Stage    #
 ################################
@@ -44,11 +50,13 @@ SHELL ["/bin/bash", "-c"]
 ARG TAG
 ARG REPOSITORY
 
-# Clone kona at the specified tag
+# Clone kona at the specified tag. op-core is preserved alongside rust so the
+# kona-hardforks build.rs ancestor walk finds the NUT bundles.
 RUN git clone https://github.com/${REPOSITORY} repo && \
   cd repo && \
   git checkout "${TAG}" && \
-  mv rust /workspace
+  mv rust /workspace && \
+  mv op-core /workspace/op-core
 
 ################################
 #       App Build Stage        #
@@ -73,17 +81,16 @@ FROM build-entrypoint AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies - this is the caching Docker layer!
-RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --profile "${BUILD_PROFILE}" --recipe-path recipe.json
+RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}" --recipe-path recipe.json
 
 # Build application. This step will systematically trigger a cache invalidation if the source code changes.
 COPY --from=app-setup /workspace .
 # Build the application binary on the selected tag. Since we build the external dependencies in the previous step,
 # this step will reuse the target directory from the previous step.
-RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --bin "${BIN_TARGET}" --profile "${BUILD_PROFILE}"
+RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}"
 
 # Export stage
-FROM ubuntu:22.04 AS export-stage
-SHELL ["/bin/bash", "-c"]
+FROM chainguard/wolfi-base:latest AS export-stage
 
 ARG BIN_TARGET
 ARG BUILD_PROFILE
@@ -92,11 +99,15 @@ ARG BUILD_PROFILE
 ARG UID=10001
 ARG GID=10001
 
-# Install ca-certificates and libssl-dev for TLS support.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install ca-certificates, openssl, libstdc++ for TLS + C++ runtime support.
+RUN apk add --no-cache \
   ca-certificates \
-  libssl-dev \
-  && rm -rf /var/lib/apt/lists/*
+  openssl \
+  libstdc++ \
+  bash \
+  shadow
+
+RUN update-ca-certificates
 
 # Create non-root runtime user
 RUN groupadd --gid ${GID} app \

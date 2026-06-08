@@ -6,6 +6,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,13 +15,6 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Equal(t,
 			optionKindDeployer|optionKindMaxSequencingWindow,
 			WithSequencingWindow(12, 24).optionKinds(),
-		)
-	})
-
-	t.Run("WithCannonKonaGameTypeAdded", func(t *testing.T) {
-		require.Equal(t,
-			optionKindAddedGameType|optionKindChallengerCannonKona,
-			WithCannonKonaGameTypeAdded().optionKinds(),
 		)
 	})
 
@@ -34,7 +28,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 	t.Run("RequireGameTypePresent", func(t *testing.T) {
 		require.Equal(t,
 			optionKindAfterBuild|optionKindProofValidation,
-			RequireGameTypePresent(gameTypes.CannonGameType).optionKinds(),
+			RequireGameTypePresent(gameTypes.CannonKonaGameType).optionKinds(),
 		)
 	})
 
@@ -46,6 +40,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
 		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
+		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
 }
@@ -69,7 +64,7 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalPresetSupportedOptionKinds,
 			opts: Combine(
 				WithTimeTravelEnabled(),
-				RequireGameTypePresent(gameTypes.CannonGameType),
+				RequireGameTypePresent(gameTypes.CannonKonaGameType),
 			),
 			want: 0,
 		},
@@ -78,12 +73,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalPresetSupportedOptionKinds,
 			opts:      WithL1Geth("/tmp/geth"),
 			want:      0,
-		},
-		{
-			name:      "minimal with conductors rejects challenger toggle",
-			supported: minimalWithConductorsPresetSupportedOptionKinds,
-			opts:      WithChallengerCannonKonaEnabled(),
-			want:      optionKindChallengerCannonKona,
 		},
 		{
 			name:      "flashblocks allows builder and deployer adapters",
@@ -96,20 +85,20 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want: optionKindTimeTravel,
 		},
 		{
-			name:      "simple interop super proofs reject builder and proof hooks",
-			supported: simpleInteropSuperProofsPresetSupportedOptionKinds,
-			opts: Combine(
-				WithOPRBuilderOption(builderOpt),
-				RequireGameTypePresent(gameTypes.CannonGameType),
-			),
-			want: optionKindOPRBuilder | optionKindAfterBuild | optionKindProofValidation,
-		},
-		{
-			name:      "supernode proofs allow challenger and time travel toggles",
+			name:      "shared supernode proofs reject pre-genesis super game",
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(
-				WithChallengerCannonKonaEnabled(),
 				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
+			),
+			want: optionKindPreGenesisSuperGame,
+		},
+		{
+			name:      "two l2 supernode proofs accept pre-genesis super game",
+			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
+			opts: Combine(
+				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
 			),
 			want: 0,
 		},
@@ -122,13 +111,16 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 		{
 			name:      "two l2 supernode interop accepts time travel",
 			supported: twoL2SupernodeInteropPresetSupportedOptionKinds,
-			opts:      WithTimeTravelEnabled(),
-			want:      0,
+			opts: Combine(
+				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
+			),
+			want: 0,
 		},
 		{
 			name:      "unsupported proof validation is called out separately from generic after build",
 			supported: optionKindAfterBuild,
-			opts:      RequireGameTypePresent(gameTypes.CannonGameType),
+			opts:      RequireGameTypePresent(gameTypes.CannonKonaGameType),
 			want:      optionKindProofValidation,
 		},
 	}

@@ -15,12 +15,12 @@ const (
 	optionKindBatcher
 	optionKindProposer
 	optionKindOPRBuilder
+	optionKindOpReth
 	optionKindGlobalL2CL
 	optionKindGlobalSyncTesterEL
 	optionKindL1EL
 	optionKindAddedGameType
 	optionKindRespectedGameType
-	optionKindChallengerCannonKona
 	optionKindTimeTravel
 	optionKindMaxSequencingWindow
 	optionKindRequireInteropNotAtGen
@@ -29,18 +29,24 @@ const (
 	optionKindMessageExpiryWindow
 	optionKindInteropLogBackfill
 	optionKindInteropFilter
+	optionKindPreGenesisSuperGame
+	optionKindSkipHonestProposer
+	optionKindSupernodeVerifierSyncMode
+	optionKindInteropActivationDelay
+	optionKindInteropAtGenesis
+	optionKindSupernodeVNSequencerForBootstrap
 )
 
 const allOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindOPRBuilder |
+	optionKindOpReth |
 	optionKindGlobalL2CL |
 	optionKindGlobalSyncTesterEL |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
-	optionKindChallengerCannonKona |
 	optionKindTimeTravel |
 	optionKindMaxSequencingWindow |
 	optionKindRequireInteropNotAtGen |
@@ -48,7 +54,13 @@ const allOptionKinds = optionKindDeployer |
 	optionKindProofValidation |
 	optionKindMessageExpiryWindow |
 	optionKindInteropLogBackfill |
-	optionKindInteropFilter
+	optionKindInteropFilter |
+	optionKindPreGenesisSuperGame |
+	optionKindSkipHonestProposer |
+	optionKindSupernodeVerifierSyncMode |
+	optionKindInteropActivationDelay |
+	optionKindInteropAtGenesis |
+	optionKindSupernodeVNSequencerForBootstrap
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -58,12 +70,12 @@ var optionKindLabels = []struct {
 	{kind: optionKindBatcher, label: "batcher options"},
 	{kind: optionKindProposer, label: "proposer options"},
 	{kind: optionKindOPRBuilder, label: "builder options"},
+	{kind: optionKindOpReth, label: "op-reth options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
 	{kind: optionKindL1EL, label: "L1 EL options"},
 	{kind: optionKindAddedGameType, label: "added game types"},
 	{kind: optionKindRespectedGameType, label: "respected game types"},
-	{kind: optionKindChallengerCannonKona, label: "challenger cannon-kona"},
 	{kind: optionKindTimeTravel, label: "time travel"},
 	{kind: optionKindMaxSequencingWindow, label: "max sequencing window"},
 	{kind: optionKindRequireInteropNotAtGen, label: "interop-not-at-genesis"},
@@ -72,6 +84,12 @@ var optionKindLabels = []struct {
 	{kind: optionKindMessageExpiryWindow, label: "message expiry window"},
 	{kind: optionKindInteropLogBackfill, label: "interop log backfill depth"},
 	{kind: optionKindInteropFilter, label: "interop filter"},
+	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
+	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
+	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
+	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
+	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 }
 
 func (k optionKinds) String() string {
@@ -114,54 +132,40 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
-	optionKindChallengerCannonKona |
 	optionKindTimeTravel |
 	optionKindAfterBuild |
 	optionKindProofValidation
 
-const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindBatcher |
-	optionKindProposer |
-	optionKindGlobalL2CL |
-	optionKindL1EL |
-	optionKindAddedGameType |
-	optionKindRespectedGameType |
-	optionKindTimeTravel |
-	optionKindAfterBuild |
-	optionKindProofValidation
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
 
-const singleChainInteropPresetSupportedOptionKinds = optionKindDeployer |
+// singleSupernodeWithSyncTesterPresetSupportedOptionKinds covers exactly what
+// the runtime in singlechain_supernode_synctester_variant.go actually wires.
+// Proposer / game-type / proof-validation options are intentionally excluded:
+// this preset has no proposer and no dispute game surface, so accepting them
+// would be a silent no-op footgun.
+const singleSupernodeWithSyncTesterPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
-	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindGlobalSyncTesterEL |
 	optionKindL1EL |
-	optionKindAddedGameType |
-	optionKindRespectedGameType |
 	optionKindTimeTravel |
-	optionKindMaxSequencingWindow |
-	optionKindRequireInteropNotAtGen |
 	optionKindAfterBuild |
-	optionKindProofValidation
-
-const simpleInteropSuperProofsPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindBatcher |
-	optionKindProposer |
-	optionKindGlobalL2CL |
-	optionKindL1EL |
-	optionKindChallengerCannonKona |
-	optionKindTimeTravel |
-	optionKindMaxSequencingWindow |
-	optionKindRequireInteropNotAtGen
+	optionKindSupernodeVerifierSyncMode |
+	optionKindInteropActivationDelay
 
 const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
-	optionKindChallengerCannonKona |
+	optionKindProposer |
 	optionKindL1EL |
 	optionKindTimeTravel |
-	optionKindMessageExpiryWindow
+	optionKindMessageExpiryWindow |
+	optionKindSkipHonestProposer
+
+const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
+	optionKindPreGenesisSuperGame
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
@@ -171,7 +175,11 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindTimeTravel |
 	optionKindL1EL |
 	optionKindInteropLogBackfill |
-	optionKindInteropFilter
+	optionKindInteropFilter |
+	optionKindPreGenesisSuperGame |
+	optionKindSupernodeVNSequencerForBootstrap
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindOPRBuilder
+	optionKindOPRBuilder |
+	optionKindOpReth |
+	optionKindInteropAtGenesis

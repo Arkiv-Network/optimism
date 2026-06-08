@@ -6,7 +6,15 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -19,13 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/params/forks"
-	"github.com/holiman/uint256"
 )
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
@@ -163,7 +164,7 @@ type worldBuilder struct {
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
-	outFullCfgSet depset.FullConfigSetMerged
+	outFullCfgSet config.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -239,7 +240,6 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		_, superCfg := builder.WithSuperchain()
 		intentbuilder.WithDevkeySuperRoles(p, keys, l1ChainID, superCfg)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 	}
@@ -294,7 +294,7 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 		}
 	}
 }
@@ -358,6 +358,16 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
 	}
 }
 
+// WithUniformL2BlockTimes sets the same L2 block time (in seconds) on every
+// configured L2 chain.
+func WithUniformL2BlockTimes(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithBlockTime(seconds)
+		}
+	}
+}
+
 // WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
 func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
@@ -409,6 +419,16 @@ func (wb *worldBuilder) buildL2Genesis() {
 		id := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Genesis[id] = l2Genesis
 		wb.outL2RollupCfg[id] = l2RollupCfg
+		// op-geth is deprecated as of the Karst fork and refuses to build, seal,
+		// or import Karst blocks. The op-geth EL lane therefore cannot run any
+		// chain that ever activates Karst, so skip such tests here — the single
+		// point every runtime builds genesis through — letting Karst+ coverage
+		// run on op-reth (the official Karst EL client). op-geth still covers
+		// chains up to Jovian.
+		if l2Genesis.Config.KarstTime != nil && devstackL2ELKind() == MixedL2ELOpGeth {
+			wb.p.Logf("op-geth is deprecated as of Karst; skipping test: chain %s activates Karst and DEVSTACK_L2EL_KIND=op-geth", id)
+			wb.p.SkipNow()
+		}
 	}
 }
 
@@ -425,7 +445,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
-		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxy,
 		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxy,
 	}
 }
@@ -437,9 +456,9 @@ func (wb *worldBuilder) buildFullConfigSet() {
 		return
 	}
 
-	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
-		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
+	rollupConfigSet := config.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
+		config.StaticTimestamp(wb.outL1Genesis.Timestamp))
+	fullCfgSet, err := config.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
 	wb.require.NoError(err)
 	wb.outFullCfgSet = fullCfgSet
 }
